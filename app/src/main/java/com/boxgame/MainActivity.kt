@@ -50,12 +50,17 @@ fun GameScreen() {
     }
 
     var boxPosition by remember { mutableStateOf(Offset((screenWidth - boxSize) / 2, (screenHeight - boxSize) / 2)) }
+    val boxOffset = remember { mutableStateOf(Offset(1f, 1f)) }
+
     var gameOver by remember { mutableStateOf(false) }
+    var gameStarted by remember { mutableStateOf(false) }
+
     var startTime by remember { mutableStateOf(0L) }
     var endTime by remember { mutableStateOf(0L) }
+    var currentGameTime by remember { mutableStateOf(0L) }
+    var bestTime by remember { mutableStateOf(getBestTime()) }
+
     var enemies = remember { mutableStateListOf<Enemy>() }
-    var gameStarted by remember { mutableStateOf(false) }
-    var bestTime by remember { mutableFloatStateOf(getBestTime()) }
 
     // Function to start the clock
     fun startClock() {
@@ -71,15 +76,17 @@ fun GameScreen() {
 
     // Function to calculate the time survived
     fun calcTime(): Float {
-        return (endTime - startTime) / 1000f
+        return currentGameTime / 1000f
     }
 
     // Function to reset the game
     fun resetGame() {
+        gameStarted = false
         gameOver = false
+        currentGameTime = 0L
+
         boxPosition = Offset((screenWidth - boxSize) / 2, (screenHeight - boxSize) / 2) // Start in the center
         enemies.clear()
-        gameStarted = false
 
         repeat(4) {
             var enemyPosition: Offset
@@ -89,10 +96,8 @@ fun GameScreen() {
                     Random.nextFloat() * (screenHeight - borderWidth * 2 - enemySize) + borderWidth
                 )
             } while (
-                enemyPosition.x < boxPosition.x + boxSize &&
-                enemyPosition.x + enemySize > boxPosition.x &&
-                enemyPosition.y < boxPosition.y + boxSize &&
-                enemyPosition.y + enemySize > boxPosition.y
+                (enemyPosition.x < boxPosition.x + boxSize + 50f && enemyPosition.x + enemySize > boxPosition.x - 50f) &&
+                (enemyPosition.y < boxPosition.y + boxSize + 50f && enemyPosition.y + enemySize > boxPosition.y - 50f)
             )
 
             enemies.add(
@@ -113,10 +118,15 @@ fun GameScreen() {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        Text(
+            text = "Time: ${"%.2f".format(currentGameTime / 1000f)}s",
+            modifier = Modifier.align(Alignment.CenterHorizontally).padding(16.dp),
+            color = Color.Black
+        )
         Box(
             modifier = Modifier
                 .weight(1f)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp)
         ) {
             Canvas(
                 modifier = Modifier
@@ -186,19 +196,23 @@ fun GameScreen() {
             }
 
             // Move enemies smoothly towards their target position with reduced frequency
-            LaunchedEffect(gameOver) {
-                if (!gameOver) {
-                    while (true) {
-                        enemies.forEach { enemy ->
-                            enemy.updatePosition(screenWidth, screenHeight, enemySize, borderWidth)
-                        }
-                        delay(30L)
-                    }
-                }
-            }
+            LaunchedEffect(gameStarted) {
+                while (gameStarted && !gameOver) {
+                    currentGameTime = System.currentTimeMillis() - startTime
 
-            LaunchedEffect(boxPosition) {
-                if (!gameOver) {
+                    enemies.forEach { enemy ->
+                        enemy.updatePosition(screenWidth, screenHeight, enemySize, borderWidth)
+                    }
+
+                    boxPosition = Offset(
+                        boxPosition.x + boxOffset.value.x,
+                        boxPosition.y + boxOffset.value.y
+                    )
+                    boxPosition = Offset(
+                        boxPosition.x - boxOffset.value.x,
+                        boxPosition.y - boxOffset.value.y
+                    )
+
                     enemies.forEach { enemy ->
                         if (boxPosition.x < enemy.position.x + enemySize &&
                             boxPosition.x + boxSize > enemy.position.x &&
@@ -208,6 +222,8 @@ fun GameScreen() {
                             gameOver = true
                         }
                     }
+
+                    delay(30L)
                 }
             }
 
